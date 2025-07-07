@@ -2,13 +2,21 @@ const fs = require('fs');
 const path = require('path');
 const mammoth = require('mammoth');
 const mongoose = require('mongoose');
-const Service = require('../models/Service'); // Adjust the path if needed
+const Service = require('../models/Service');
+const Concern = require('../models/Concern');
+const Special = require('../models/SpecialProduct');
 
 const CATEGORY_ID = '686b6eca7b2aa04f9d6eced1'; // Replace with your category ID
 
-const extractData = (text) => {
+const extractData = (text, fileName) => {
   const lines = text.split('\n').map(line => line.trim()).filter(line => line);
-  const serviceName = lines[0] || 'Unknown';
+  let serviceName = lines[0] || 'Unknown';
+
+  // If the filename contains a '+', replace ' with ' or 'with' (case-insensitive) in the name with '+'
+  if (fileName.includes('+')) {
+    serviceName = serviceName.replace(/\s*with\s*/i, ' + ');
+  }
+
   console.log('Service Name:', serviceName);
 
   const data = {
@@ -88,25 +96,52 @@ const extractData = (text) => {
   return data;
 };
 
-const run = async () => {
+const normalizeName = (name) =>
+  name
+    .replace(/\s*with\s*/gi, ' + ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+const getFileNameWithoutExtension = (filePath) => {
+  const fileName = path.basename(filePath);
+  return fileName.replace(/\.docx$/i, '');
+};
+
+const processDocxFile = async (filePath, models) => {
   try {
-    // Connect to MongoDB
-    await mongoose.connect('mongodb+srv://rohit:6POhY7Io7VIpHsdy@derma.56g6nhr.mongodb.net/?retryWrites=true&w=majority&appName=Derma', {
-      useNewUrlParser: true,
-      useUnifiedTopology: true
-    });
-
-    // Replace with the actual file name you want to search for
-    const fileName = 'AcneFacial.docx'; 
-    const filePath = path.join(__dirname, "AcneFacial.docx"); // File path for the document
-
-    // Extract data from the docx file
     const result = await mammoth.extractRawText({ path: filePath });
-    const data = extractData(result.value);
+    const data = extractData(result.value, path.basename(filePath));
 
-    // Update the existing service document by name (case-insensitive, trimmed)
-    const updated = await Service.findOneAndUpdate(
-      { name: { $regex: new RegExp('^' + data.name.trim() + '$', 'i') } }, // Only search by name, ignore category
+    const fileNameWithoutExt = getFileNameWithoutExtension(filePath);
+    const normalizedFileName = normalizeName(fileNameWithoutExt);
+    console.log(`🔍 Looking for document with normalized filename: "${normalizedFileName}"`);
+
+    let matchedModel = null;
+    let matchedDoc = null;
+
+    // Search through all models to find a match
+    for (const model of models) {
+      const allDocs = await model.find({});
+      const match = allDocs.find(doc => {
+        const docName = normalizeName(doc.name);
+        return docName === normalizedFileName;
+      });
+      
+      if (match) {
+        matchedModel = model;
+        matchedDoc = match;
+        break;
+      }
+    }
+
+    if (!matchedDoc) {
+      console.log(`⚠ [${path.basename(filePath)}] No matching document found in any collection with normalized filename: "${normalizedFileName}"`);
+      return;
+    }
+
+    const updated = await matchedModel.findByIdAndUpdate(
+      matchedDoc._id,
       {
         meta_title: data.meta_title,
         meta_description: data.meta_description,
@@ -115,13 +150,45 @@ const run = async () => {
         content: data.content,
         faqs: data.faqs
       },
-      { new: true } // Return the updated document
+      { new: true }
     );
 
     if (updated) {
-      console.log('✅ Service updated successfully:', updated._id);
+      console.log(`✅ [${path.basename(filePath)}] ${matchedModel.modelName} updated successfully:`, updated._id);
     } else {
-      console.log('⚠ No service found with name:', data.name);
+      console.log(`⚠ [${path.basename(filePath)}] Failed to update ${matchedModel.modelName}:`, matchedDoc._id);
+    }
+  } catch (err) {
+    console.error(`❌ [${path.basename(filePath)}] Error:`, err);
+  }
+};
+
+const run = async () => {
+  try {
+    // Connect to MongoDB
+    await mongoose.connect('mongodb+srv://rohit:6POhY7Io7VIpHsdy@derma.56g6nhr.mongodb.net/?retryWrites=true&w=majority&appName=Derma', {
+      useNewUrlParser: true,
+      useUnifiedTopology: true
+    });
+
+    const servicesDir = path.join(__dirname, 'services');
+    if (!fs.existsSync(servicesDir)) {
+      console.log('No "services" directory found.');
+      return;
+    }
+
+    const files = fs.readdirSync(servicesDir).filter(f => f.endsWith('.docx'));
+    if (files.length === 0) {
+      console.log('No .docx files found in the services directory.');
+      return;
+    }
+
+    // All models to search through
+    const models = [Service, Concern, Special];
+
+    for (const file of files) {
+      const filePath = path.join(servicesDir, file);
+      await processDocxFile(filePath, models);
     }
 
     mongoose.connection.close();
