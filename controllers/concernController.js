@@ -20,6 +20,16 @@ exports.getOne = async (req, res) => {
   res.json(concern);
 };
 
+exports.getBySlug = async (req, res) => {
+  try {
+    const concern = await Concern.findOne({ slug: req.params.slug }).populate('category');
+    if (!concern) return res.status(404).json({ error: 'Concern not found' });
+    res.json(concern);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 exports.update = async (req, res) => {
   const concern = await Concern.findByIdAndUpdate(req.params.id, req.body, { new: true }).populate('category');
   if (!concern) return res.status(404).json({ error: 'Not found' });

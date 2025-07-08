@@ -20,6 +20,16 @@ exports.getOne = async (req, res) => {
   res.json(service);
 };
 
+exports.getBySlug = async (req, res) => {
+  try {
+    const service = await Service.findOne({ slug: req.params.slug }).populate('category');
+    if (!service) return res.status(404).json({ error: 'Service not found' });
+    res.json(service);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 exports.update = async (req, res) => {
   const service = await Service.findByIdAndUpdate(req.params.id, req.body, { new: true }).populate('category');
   if (!service) return res.status(404).json({ error: 'Not found' });

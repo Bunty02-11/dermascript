@@ -20,6 +20,16 @@ exports.getOne = async (req, res) => {
   res.json(product);
 };
 
+exports.getBySlug = async (req, res) => {
+  try {
+    const product = await SpecialProduct.findOne({ slug: req.params.slug }).populate('category');
+    if (!product) return res.status(404).json({ error: 'Special product not found' });
+    res.json(product);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 exports.update = async (req, res) => {
   const product = await SpecialProduct.findByIdAndUpdate(req.params.id, req.body, { new: true }).populate('category');
   if (!product) return res.status(404).json({ error: 'Not found' });
