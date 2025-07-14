@@ -7,6 +7,10 @@ const categoryRoutes = require('./routes/categoryRoutes');
 const serviceRoutes = require('./routes/serviceRoutes');
 const concernRoutes = require('./routes/concernRoutes');
 const specialProductRoutes = require('./routes/specialProductRoutes');
+const blogRoutes = require('./routes/blogRoutes');
+const testimonialRoutes = require('./routes/testimonialRoutes');
+const discountServiceRoutes = require('./routes/discountServiceRoutes');
+const contactRoutes = require('./routes/contactRoutes');
 
 const app = express();
 app.use(bodyParser.json());
@@ -33,6 +37,10 @@ app.use('/api/categories', categoryRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/concerns', concernRoutes);
 app.use('/api/specialproducts', specialProductRoutes);
+app.use('/api/blogs', blogRoutes);
+app.use('/api/testimonials', testimonialRoutes);
+app.use('/api/discountservices', discountServiceRoutes);
+app.use('/api/contacts', contactRoutes);
 
 app.listen(8000, () => {
   console.log('Server running on port 8000');
