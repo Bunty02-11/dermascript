@@ -45,3 +45,9 @@ app.use('/api/contacts', contactRoutes);
 app.listen(8000, () => {
   console.log('Server running on port 8000');
 });
+
+
+const awsServerlessExpress = require('aws-serverless-express');
+const server = awsServerlessExpress.createServer(app)
+
+module.exports.handler = (event, context) => awsServerlessExpress.proxy(server, event, context);
